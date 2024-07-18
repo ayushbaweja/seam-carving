@@ -3,6 +3,7 @@
 
 from PIL import Image
 import numpy as np
+import argparse
 
 # loading image
 def load_image(image_path, mode = "L"):
@@ -43,7 +44,7 @@ def apply_sobel_filter(im2arr):
     Gx = np.array([[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]])
     Gy = np.array([[1.0, 2.0, 1.0], [0.0, 0.0, -0.0], [-1.0, -2.0, -1.0]])
 
-    sobel_filtered = np.zeros_like(im2arr)
+    sobel_filtered = np.zeros_like(im2arr, dtype=np.float64)
 
     for i in range(im2arr.shape[0] - 2):
         for j in range(im2arr.shape[1] - 2):
@@ -55,10 +56,10 @@ def apply_sobel_filter(im2arr):
     # show_image(im2arr)
     # show_image(sobel_filtered)
 
-# finding min seam
-def min_seam(im2arr):
+# seam values
+def seam_val(im2arr):
     energy = apply_sobel_filter(im2arr)
-    dp = np.zeros_like(energy)
+    dp = np.zeros_like(energy, dtype=np.float64)
 
     for i in range(1, im2arr.shape[0]):
         for j in range(0, im2arr.shape[1]):
@@ -75,15 +76,55 @@ def min_seam(im2arr):
 
     return energy, dp
 
-# removing seam
+# removing lowest seam
 def carve(im2arr):
-    energy, dp = min_seam(im2arr)
+    energy, dp = seam_val(im2arr)
+    seam = np.zeros(im2arr.shape[0], dtype=int)  # Create a 1D array for the seam
+
+    # Column index of minimum energy in last row
+    seam[-1] = np.argmin(energy[-1])
+
+    # Tracing seam
+    for i in range(im2arr.shape[0] - 2, -1, -1):
+        seam[i] = dp[i+1, seam[i+1]]
+
+    carved_image = np.zeros((im2arr.shape[0], im2arr.shape[1] - 1), dtype=im2arr.dtype)
+    for i in range(im2arr.shape[0]):
+        carved_image[i, :] = np.delete(im2arr[i, :], seam[i])
+
+    return carved_image
 
 
 # running
-image_path = "example/surfer.jpg"
-im2arr = load_image(image_path)
+def main():
+    parser = argparse.ArgumentParser(description='Seam Carving to reduce image width.')
+    parser.add_argument('input_image', type=str, help='Path to the input image')
+    parser.add_argument('output_image', type=str, help='Path to save the carved image')
+    parser.add_argument('new_width', type=int, help='Desired width of the output image')
 
-if im2arr is not None:
-    sobel_filtered = apply_sobel_filter(im2arr)
-    show_imarr(sobel_filtered)
+    args = parser.parse_args()
+
+    # Load the input image
+    im2arr = load_image(args.input_image)
+    if im2arr is None:
+        print(f"Error: Unable to open image file {args.input_image}")
+        return
+
+    # Calculate the number of seams to remove
+    num_seams = im2arr.shape[1] - args.new_width
+    if num_seams <= 0:
+        print(f"Error: The desired width {args.new_width} is not smaller than the current width {im2arr.shape[1]}")
+        return
+
+    # Carve the seams iteratively
+    for _ in range(num_seams):
+        print("carving!")
+        im2arr = carve(im2arr)
+
+    # Save the carved image
+    carved_image = Image.fromarray(im2arr)
+    carved_image.save(args.output_image)
+    print(f"Carved image saved to {args.output_image}")
+
+if __name__ == "__main__":
+    main()
