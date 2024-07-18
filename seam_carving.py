@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 
 # loading image
-def load_image(image_path, mode = "L"):
+def load_image(image_path, mode = "RGB"):
     try:
         im = Image.open(image_path).convert(mode) # converts to greyscale
         im2arr = np.array(im)
@@ -41,15 +41,18 @@ Gx = | 2.0   0.0  -2.0 |    and     Gy = |  0.0   0.0   0.0 |
 
 def apply_sobel_filter(im2arr):
 
+    # Convert to grayscale for energy calculation
+    gray_arr = np.dot(im2arr[...,:3], [0.2989, 0.5870, 0.1140])
+
     Gx = np.array([[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]])
     Gy = np.array([[1.0, 2.0, 1.0], [0.0, 0.0, -0.0], [-1.0, -2.0, -1.0]])
 
-    sobel_filtered = np.zeros_like(im2arr, dtype=np.float64)
+    sobel_filtered = np.zeros_like(gray_arr, dtype=np.float64)
 
-    for i in range(im2arr.shape[0] - 2):
-        for j in range(im2arr.shape[1] - 2):
-            gx = np.sum(np.multiply(Gx, im2arr[i:i+3, j:j+3])) # 3x3 kernel in x direction
-            gy = np.sum(np.multiply(Gy, im2arr[i:i+3, j:j+3])) # 3x3 kernel in y direction
+    for i in range(gray_arr.shape[0] - 2):
+        for j in range(gray_arr.shape[1] - 2):
+            gx = np.sum(np.multiply(Gx, gray_arr[i:i+3, j:j+3])) # 3x3 kernel in x direction
+            gy = np.sum(np.multiply(Gy, gray_arr[i:i+3, j:j+3])) # 3x3 kernel in y direction
             sobel_filtered[i+1, j+1] = np.sqrt(gx ** 2 + gy ** 2) # centered at i+1, j+1 pixel
     return sobel_filtered
 
@@ -79,18 +82,18 @@ def seam_val(im2arr):
 # removing lowest seam
 def carve(im2arr):
     energy, dp = seam_val(im2arr)
-    seam = np.zeros(im2arr.shape[0], dtype=int)  # Create a 1D array for the seam
+    seam = np.zeros(im2arr.shape[0], dtype=int)  # create a 1D array for the seam
 
-    # Column index of minimum energy in last row
+    # column index of minimum energy in last row
     seam[-1] = np.argmin(energy[-1])
 
-    # Tracing seam
+    # tracing seam
     for i in range(im2arr.shape[0] - 2, -1, -1):
         seam[i] = dp[i+1, seam[i+1]]
 
-    carved_image = np.zeros((im2arr.shape[0], im2arr.shape[1] - 1), dtype=im2arr.dtype)
+    carved_image = np.zeros((im2arr.shape[0], im2arr.shape[1] - 1, 3), dtype=im2arr.dtype)
     for i in range(im2arr.shape[0]):
-        carved_image[i, :] = np.delete(im2arr[i, :], seam[i])
+        carved_image[i, :, :] = np.delete(im2arr[i, :, :], seam[i], axis=0)
 
     return carved_image
 
@@ -122,7 +125,7 @@ def main():
         im2arr = carve(im2arr)
 
     # Save the carved image
-    carved_image = Image.fromarray(im2arr)
+    carved_image = Image.fromarray(im2arr.astype("uint8"), 'RGB')
     carved_image.save(args.output_image)
     print(f"Carved image saved to {args.output_image}")
 
