@@ -26,42 +26,30 @@ def show_imarr(imarr):
 # print("Width:", im.width)
 # print("Height:", im.height)
 
-# Edge detection using Sobel filter
-"""
-Sobel filter
+# gradient magnitude
 
-      _               _                   _                _
-     |                 |                 |                  |
-     | 1.0   0.0  -1.0 |                 |  1.0   2.0   1.0 |
-Gx = | 2.0   0.0  -2.0 |    and     Gy = |  0.0   0.0   0.0 |
-     | 1.0   0.0  -1.0 |                 | -1.0  -2.0  -1.0 |
-     |_               _|                 |_                _|
-
-"""
-
-def apply_sobel_filter(im2arr):
+def compute_energy(im2arr):
 
     # Convert to grayscale for energy calculation
     gray_arr = np.dot(im2arr[...,:3], [0.2989, 0.5870, 0.1140])
 
-    Gx = np.array([[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]])
-    Gy = np.array([[1.0, 2.0, 1.0], [0.0, 0.0, -0.0], [-1.0, -2.0, -1.0]])
+    gx = np.zeros_like(gray_arr)
+    gy = np.zeros_like(gray_arr)
 
-    sobel_filtered = np.zeros_like(gray_arr, dtype=np.float64)
+    gx[:, 1:-1] = gray_arr[:, 2:] - gray_arr[:, :-2] # difference between pixel to the right and pixel to the left
+    gx[:, 0] = gray_arr[:, 1] - gray_arr[:, 0] # for first column
+    gx[:,-1] = gray_arr[:,-1] - gray_arr[:, -2] # for last column
 
-    for i in range(gray_arr.shape[0] - 2):
-        for j in range(gray_arr.shape[1] - 2):
-            gx = np.sum(np.multiply(Gx, gray_arr[i:i+3, j:j+3])) # 3x3 kernel in x direction
-            gy = np.sum(np.multiply(Gy, gray_arr[i:i+3, j:j+3])) # 3x3 kernel in y direction
-            sobel_filtered[i+1, j+1] = np.sqrt(gx ** 2 + gy ** 2) # centered at i+1, j+1 pixel
-    return sobel_filtered
+    gy[1:-1, :] = gray_arr[2:, :] - gray_arr[:-2, :] # difference between pixel below and pixel above
+    gy[0, :] = gray_arr[1, :] - gray_arr[0, :] # for first row
+    gy[-1, :] = gray_arr[-1, :] - gray_arr[-2, :] # for last row
 
+    return np.sqrt(gx**2 + gy**2)
     # show_image(im2arr)
-    # show_image(sobel_filtered)
 
 # seam values
 def seam_val(im2arr):
-    energy = apply_sobel_filter(im2arr)
+    energy = compute_energy(im2arr)
     dp = np.zeros_like(energy, dtype=np.float64)
 
     for i in range(1, im2arr.shape[0]):
